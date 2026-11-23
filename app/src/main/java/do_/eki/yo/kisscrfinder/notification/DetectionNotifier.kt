@@ -12,6 +12,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import do_.eki.yo.kisscrfinder.MainActivity
 import do_.eki.yo.kisscrfinder.R
+import do_.eki.yo.kisscrfinder.detection.Compound
+import do_.eki.yo.kisscrfinder.detection.RadicalTable
 
 class DetectionNotifier(
     private val context: Context,
@@ -27,7 +29,8 @@ class DetectionNotifier(
         manager.createNotificationChannel(channel)
     }
 
-    fun notifyDetected(word: String) {
+    fun notifyDetected(compounds: List<Compound>) {
+        val first = compounds.first().text
         if (!canPostNotifications(context)) return
 
         val contentIntent =
@@ -41,8 +44,18 @@ class DetectionNotifier(
             NotificationCompat
                 .Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(context.getString(R.string.notification_detected, word))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentTitle(
+                    if (compounds.size == 1) {
+                        context.getString(R.string.notification_detected, first)
+                    } else {
+                        context.getString(R.string.notification_detected_multiple, first, compounds.size)
+                    },
+                ).setContentText(compounds.joinToString("、") { it.text })
+                .setStyle(
+                    NotificationCompat.InboxStyle().also { style ->
+                        compounds.take(MAX_LINES).forEach { style.addLine(it.describe()) }
+                    },
+                ).setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(contentIntent)
                 .setAutoCancel(true)
                 .build()
@@ -52,11 +65,16 @@ class DetectionNotifier(
         ) {
             return
         }
-        manager.notify(word.hashCode(), notification)
+        manager.notify(NOTIFICATION_ID, notification)
     }
+
+    private fun Compound.describe(): String =
+        context.getString(R.string.notification_line, text, RadicalTable.radicalChar(radical))
 
     companion object {
         private const val CHANNEL_ID = "detections"
+        private const val NOTIFICATION_ID = 1
+        private const val MAX_LINES = 10
 
         fun canPostNotifications(context: Context): Boolean =
             NotificationManagerCompat.from(context).areNotificationsEnabled()

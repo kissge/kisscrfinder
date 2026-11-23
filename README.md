@@ -29,3 +29,11 @@ Android app (Kotlin + Jetpack Compose).
 | 整形 | Spotless + ktlint (`.editorconfig`) |
 | CI | GitHub Actions (`.github/workflows/ci.yml`) |
 | 依存更新 | Dependabot (`.github/dependabot.yml`) |
+
+## 部首データ
+
+`app/src/main/assets/radicals.bin` は Unicode Unihan データベースの `kRSUnicode`（康熙部首番号）から生成しています（© Unicode, Inc., [Unicode License v3](https://www.unicode.org/license.txt)）。再生成するには:
+
+```sh
+python3 -I scripts/generate_radicals.py
+```

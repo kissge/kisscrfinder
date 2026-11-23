@@ -1,12 +1,14 @@
 <resources>
     <string name="app_name">kisscrfinder</string>
 
-    <string name="accessibility_service_description">画面に表示されているテキストを読み取り、指定した単語が含まれていれば通知します。読み取ったテキストは端末の外に送信しません。</string>
+    <string name="accessibility_service_description">画面に表示されているテキストを読み取り、同じ部首の漢字が連続する熟語が含まれていれば通知します。読み取ったテキストは端末の外に送信しません。</string>
 
-    <string name="notification_channel_name">単語の検出</string>
+    <string name="notification_channel_name">熟語の検出</string>
     <string name="notification_detected">『%1$s』を検出しました</string>
+    <string name="notification_detected_multiple">『%1$s』など%2$d件を検出しました</string>
+    <string name="notification_line">%1$s（部首: %2$s）</string>
 
-    <string name="setup_description">画面に指定した単語が表示されたら通知します。次の2つを有効にしてください。</string>
+    <string name="setup_description">同じ部首の漢字が連続する熟語（例: 海洋、森林）が画面に表示されたら通知します。次の2つを有効にしてください。</string>
     <string name="setup_service_title">ユーザー補助サービス</string>
     <string name="setup_service_action">ユーザー補助の設定を開く</string>
     <string name="setup_notification_title">通知</string>

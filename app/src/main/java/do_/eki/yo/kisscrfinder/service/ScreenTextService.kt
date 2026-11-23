@@ -5,16 +5,17 @@ import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import do_.eki.yo.kisscrfinder.detection.WordDetector
+import do_.eki.yo.kisscrfinder.detection.RadicalTable
+import do_.eki.yo.kisscrfinder.detection.SameRadicalCompoundDetector
 import do_.eki.yo.kisscrfinder.notification.DetectionNotifier
 
 /**
  * Stays resident while enabled in accessibility settings, scans the text of every
- * window on screen and notifies when a target word newly appears.
+ * window on screen and notifies when a same-radical compound newly appears.
  */
 class ScreenTextService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
-    private val detector = WordDetector(WordDetector.TARGET_WORDS)
+    private lateinit var detector: SameRadicalCompoundDetector
     private lateinit var notifier: DetectionNotifier
 
     private var scanScheduled = false
@@ -27,6 +28,7 @@ class ScreenTextService : AccessibilityService() {
         }
 
     override fun onServiceConnected() {
+        detector = SameRadicalCompoundDetector(RadicalTable.fromStream(assets.open(RadicalTable.ASSET_NAME)))
         notifier = DetectionNotifier(this)
         notifier.ensureChannel()
     }
@@ -55,8 +57,9 @@ class ScreenTextService : AccessibilityService() {
                 .filter { it.packageName?.toString() !in ignoredPackages }
 
         val detected = detector.detect(roots.asSequence().flatMap { it.texts() })
-        (detected - lastDetected).forEach(notifier::notifyDetected)
-        lastDetected = detected
+        val newlyDetected = detected.filter { it.text !in lastDetected }
+        if (newlyDetected.isNotEmpty()) notifier.notifyDetected(newlyDetected)
+        lastDetected = detected.mapTo(hashSetOf()) { it.text }
     }
 
     private fun AccessibilityNodeInfo.texts(): Sequence<CharSequence> =
