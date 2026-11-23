@@ -11,6 +11,7 @@ import do_.eki.yo.kisscrfinder.data.DetectionDatabase
 import do_.eki.yo.kisscrfinder.detection.Compound
 import do_.eki.yo.kisscrfinder.detection.RadicalTable
 import do_.eki.yo.kisscrfinder.detection.SameRadicalCompoundDetector
+import do_.eki.yo.kisscrfinder.detection.longestOnly
 import do_.eki.yo.kisscrfinder.notification.DetectionNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -72,11 +73,14 @@ class ScreenTextService : AccessibilityService() {
                 .ifEmpty { listOfNotNull(rootInActiveWindow) }
                 .filter { it.packageName?.toString() !in ignoredPackages }
 
-        val detected =
+        val found =
             roots.flatMap { root ->
                 val sourcePackage = root.packageName?.toString()
                 detector.detect(root.texts()).map { sourcePackage to it }
             }
+        // Keep only the longest when one compound contains another (沼津 vs 沼津港), across all windows.
+        val longest = longestOnly(found.map { (_, compound) -> compound.text })
+        val detected = found.filter { (_, compound) -> compound.text in longest }
 
         // Only consider compounds that were not on screen in the previous scan.
         val appeared = detected.filter { (_, compound) -> compound.text !in lastDetected }
@@ -106,8 +110,11 @@ class ScreenTextService : AccessibilityService() {
             while (stack.isNotEmpty() && visited < MAX_NODES_PER_WINDOW) {
                 val node = stack.removeLast()
                 visited++
-                node.text?.let { yield(it) }
-                node.contentDescription?.let { yield(it) }
+                // Apps like Chrome keep off-screen content in the tree; read only what is shown.
+                if (node.isVisibleToUser) {
+                    node.text?.let { yield(it) }
+                    node.contentDescription?.let { yield(it) }
+                }
                 for (i in node.childCount - 1 downTo 0) {
                     node.getChild(i)?.let(stack::addLast)
                 }
