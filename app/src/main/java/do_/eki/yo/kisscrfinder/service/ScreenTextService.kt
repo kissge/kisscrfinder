@@ -5,18 +5,32 @@ import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import do_.eki.yo.kisscrfinder.data.Detection
+import do_.eki.yo.kisscrfinder.data.DetectionDao
+import do_.eki.yo.kisscrfinder.data.DetectionDatabase
+import do_.eki.yo.kisscrfinder.detection.Compound
 import do_.eki.yo.kisscrfinder.detection.RadicalTable
 import do_.eki.yo.kisscrfinder.detection.SameRadicalCompoundDetector
 import do_.eki.yo.kisscrfinder.notification.DetectionNotifier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Stays resident while enabled in accessibility settings, scans the text of every
  * window on screen and notifies when a same-radical compound newly appears.
+ * Compounds already among the latest [DetectionDao.RECENT_WINDOW] log entries are not notified again.
  */
 class ScreenTextService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var detector: SameRadicalCompoundDetector
     private lateinit var notifier: DetectionNotifier
+    private lateinit var dao: DetectionDao
+
+    // Single-threaded so that "check recent log, then insert" runs in scan order.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
     private var scanScheduled = false
     private var lastDetected: Set<String> = emptySet()
@@ -29,6 +43,7 @@ class ScreenTextService : AccessibilityService() {
 
     override fun onServiceConnected() {
         detector = SameRadicalCompoundDetector(RadicalTable.fromStream(assets.open(RadicalTable.ASSET_NAME)))
+        dao = DetectionDatabase.get(this).detectionDao()
         notifier = DetectionNotifier(this)
         notifier.ensureChannel()
     }
@@ -45,6 +60,7 @@ class ScreenTextService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(scanRunnable)
+        scope.cancel()
         super.onDestroy()
     }
 
@@ -56,10 +72,31 @@ class ScreenTextService : AccessibilityService() {
                 .ifEmpty { listOfNotNull(rootInActiveWindow) }
                 .filter { it.packageName?.toString() !in ignoredPackages }
 
-        val detected = detector.detect(roots.asSequence().flatMap { it.texts() })
-        val newlyDetected = detected.filter { it.text !in lastDetected }
-        if (newlyDetected.isNotEmpty()) notifier.notifyDetected(newlyDetected)
-        lastDetected = detected.mapTo(hashSetOf()) { it.text }
+        val detected =
+            roots.flatMap { root ->
+                val sourcePackage = root.packageName?.toString()
+                detector.detect(root.texts()).map { sourcePackage to it }
+            }
+
+        // Only consider compounds that were not on screen in the previous scan.
+        val appeared = detected.filter { (_, compound) -> compound.text !in lastDetected }
+        lastDetected = detected.mapTo(hashSetOf()) { (_, compound) -> compound.text }
+        if (appeared.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val candidates =
+            appeared.map { (sourcePackage, compound) ->
+                Detection(
+                    text = compound.text,
+                    radical = compound.radical,
+                    packageName = sourcePackage,
+                    detectedAt = now,
+                )
+            }
+        scope.launch {
+            val fresh = dao.insertIfNotRecent(candidates)
+            if (fresh.isNotEmpty()) notifier.notifyDetected(fresh.map { Compound(it.text, it.radical) })
+        }
     }
 
     private fun AccessibilityNodeInfo.texts(): Sequence<CharSequence> =

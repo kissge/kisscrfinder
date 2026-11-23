@@ -24,6 +24,7 @@ Android app (Kotlin + Jetpack Compose).
 | --- | --- |
 | 言語 | Kotlin (AGP 9 の built-in Kotlin) |
 | UI | Jetpack Compose + Material 3 (Compose BOM) |
+| 永続化 | Room (KSP)。スキーマは `app/schemas/` に出力 |
 | ビルド | Gradle Kotlin DSL + Version Catalog (`gradle/libs.versions.toml`) |
 | SDK | minSdk 26 / targetSdk 37 |
 | 整形 | Spotless + ktlint (`.editorconfig`) |

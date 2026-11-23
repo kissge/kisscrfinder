@@ -14,6 +14,9 @@
     <string name="setup_notification_title">通知</string>
     <string name="setup_notification_action">通知を許可する</string>
     <string name="setup_running">監視中です</string>
+    <string name="log_title">検出ログ</string>
+    <string name="log_empty">まだ検出していません</string>
+    <string name="log_detail">部首: %1$s ・ %2$s</string>
     <string name="status_done">✅ 有効</string>
     <string name="status_not_done">⚠️ 未設定</string>
 </resources>
