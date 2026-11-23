@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,6 +7,22 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room)
 }
+
+// Release signing: environment variables (CI) or keystore.properties (local, gitignored).
+// Set up with scripts/setup-signing.sh.
+val keystoreProperties =
+    Properties().apply {
+        rootProject
+            .file("keystore.properties")
+            .takeIf { it.exists() }
+            ?.inputStream()
+            ?.use(::load)
+    }
+
+fun signingValue(
+    property: String,
+    env: String,
+): String? = providers.environmentVariable(env).orNull ?: keystoreProperties.getProperty(property)
 
 android {
     namespace = "do_.eki.yo.kisscrfinder"
@@ -20,14 +37,30 @@ android {
         applicationId = "do_.eki.yo.kisscrfinder"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        // CI passes the run number so every build can be installed as an update.
+        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 1
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            signingValue("storeFile", "SIGNING_KEYSTORE_PATH")?.let { storeFile = file(it) }
+            storePassword = signingValue("storePassword", "SIGNING_PASSWORD")
+            keyAlias = signingValue("keyAlias", "SIGNING_KEY_ALIAS") ?: "kisscrfinder"
+            keyPassword = signingValue("keyPassword", "SIGNING_PASSWORD")
+        }
+    }
+
     buildTypes {
+        debug {
+            // Lets a local debug build sit next to the CI-built release on one device.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
