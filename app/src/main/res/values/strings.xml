@@ -7,6 +7,7 @@
     <string name="notification_detected">『%1$s』を検出しました</string>
     <string name="notification_detected_multiple">『%1$s』など%2$d件を検出しました</string>
     <string name="notification_line">%1$s（部首: %2$s）</string>
+    <string name="notification_short">%1$s（%2$s）</string>
 
     <string name="setup_description">同じ部首の漢字が連続する熟語（例: 海洋、森林）が画面に表示されたら通知します。次の2つを有効にしてください。</string>
     <string name="setup_service_title">ユーザー補助サービス</string>

@@ -50,7 +50,7 @@ class DetectionNotifier(
                     } else {
                         context.getString(R.string.notification_detected_multiple, first, compounds.size)
                     },
-                ).setContentText(compounds.joinToString("、") { it.text })
+                ).setContentText(compounds.joinToString("、") { it.describeShort() })
                 .setStyle(
                     NotificationCompat.InboxStyle().also { style ->
                         compounds.take(MAX_LINES).forEach { style.addLine(it.describe()) }
@@ -70,6 +70,9 @@ class DetectionNotifier(
 
     private fun Compound.describe(): String =
         context.getString(R.string.notification_line, text, RadicalTable.radicalChar(radical))
+
+    private fun Compound.describeShort(): String =
+        context.getString(R.string.notification_short, text, RadicalTable.radicalChar(radical))
 
     companion object {
         private const val CHANNEL_ID = "detections"
