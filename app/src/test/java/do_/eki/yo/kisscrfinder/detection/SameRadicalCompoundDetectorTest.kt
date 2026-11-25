@@ -53,6 +53,17 @@ class SameRadicalCompoundDetectorTest {
     }
 
     @Test
+    fun ignoresRepeatedSameKanji() {
+        assertEquals(emptyList<String>(), find("山山"))
+        assertEquals(emptyList<String>(), find("山山山"))
+    }
+
+    @Test
+    fun detectsRunWithRepeatedKanjiWhenAnotherKanjiIsPresent() {
+        assertEquals(listOf("海海洋"), find("海海洋"))
+    }
+
+    @Test
     fun reportsRadical() {
         assertEquals(listOf(Compound("語調", 149)), detector.findIn("語調"))
     }
