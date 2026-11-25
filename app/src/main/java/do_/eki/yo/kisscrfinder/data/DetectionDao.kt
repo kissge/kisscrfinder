@@ -4,35 +4,47 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import java.util.concurrent.TimeUnit
 
 @Dao
 abstract class DetectionDao {
     @Query("SELECT * FROM detections ORDER BY id DESC LIMIT :limit")
     abstract fun observeLatest(limit: Int): Flow<List<Detection>>
 
-    @Query("SELECT text FROM detections ORDER BY id DESC LIMIT :limit")
-    protected abstract suspend fun latestTexts(limit: Int): List<String>
+    @Query("SELECT * FROM last_seen WHERE text IN (:texts)")
+    protected abstract suspend fun lastSeen(texts: List<String>): List<LastSeen>
+
+    @Upsert
+    protected abstract suspend fun upsertLastSeen(lastSeen: List<LastSeen>)
 
     @Insert
     protected abstract suspend fun insertAll(detections: List<Detection>)
 
     /**
-     * Inserts the candidates whose text is not among the latest [window] entries,
-     * and returns them (the ones that should be notified).
+     * Records every candidate as detected at its [Detection.detectedAt], then inserts into the
+     * log and returns (the ones to notify) only those not detected within the preceding [windowMillis].
      */
     @Transaction
-    open suspend fun insertIfNotRecent(
+    open suspend fun insertIfNotRecentlySeen(
         candidates: List<Detection>,
-        window: Int = RECENT_WINDOW,
+        windowMillis: Long = RECENT_WINDOW_MILLIS,
     ): List<Detection> {
-        val recent = latestTexts(window).toHashSet()
-        val fresh = candidates.distinctBy { it.text }.filter { it.text !in recent }
+        val distinct = candidates.distinctBy { it.text }
+        if (distinct.isEmpty()) return emptyList()
+        val lastDetectedAt = lastSeen(distinct.map { it.text }).associate { it.text to it.lastDetectedAt }
+        val fresh =
+            distinct.filter { candidate ->
+                val last = lastDetectedAt[candidate.text]
+                last == null || candidate.detectedAt - last >= windowMillis
+            }
+        upsertLastSeen(distinct.map { LastSeen(it.text, it.detectedAt) })
         if (fresh.isNotEmpty()) insertAll(fresh)
         return fresh
     }
 
     companion object {
-        const val RECENT_WINDOW = 100
+        val RECENT_WINDOW_MILLIS = TimeUnit.HOURS.toMillis(72)
     }
 }

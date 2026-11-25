@@ -30,12 +30,16 @@ class DetectionDaoTest {
     @After
     fun tearDown() = db.close()
 
-    private fun detection(text: String) = Detection(text = text, radical = 1, packageName = "pkg", detectedAt = 0)
+    private fun detection(
+        text: String,
+        at: Long,
+    ) = Detection(text = text, radical = 1, packageName = "pkg", detectedAt = at)
 
     private suspend fun insert(
         vararg texts: String,
-        window: Int = DetectionDao.RECENT_WINDOW,
-    ) = dao.insertIfNotRecent(texts.map(::detection), window).map { it.text }
+        at: Long = 0,
+        window: Long = WINDOW,
+    ) = dao.insertIfNotRecentlySeen(texts.map { detection(it, at) }, window).map { it.text }
 
     @Test
     fun insertsNewTexts() =
@@ -45,10 +49,10 @@ class DetectionDaoTest {
         }
 
     @Test
-    fun skipsTextsInRecentWindow() =
+    fun skipsTextsSeenWithinWindow() =
         runTest {
-            insert("森林")
-            assertEquals(listOf("海洋"), insert("森林", "海洋"))
+            insert("森林", at = 0)
+            assertEquals(listOf("海洋"), insert("森林", "海洋", at = WINDOW - 1))
         }
 
     @Test
@@ -58,13 +62,22 @@ class DetectionDaoTest {
         }
 
     @Test
-    fun allowsTextAgainOnceOutsideWindow() =
+    fun allowsTextAgainOnceWindowHasPassed() =
         runTest {
-            insert("森林", window = 2)
-            insert("海洋", window = 2)
-            insert("評論", window = 2)
-            // The latest 2 are 評論 and 海洋, so 森林 is notifiable again.
-            assertEquals(listOf("森林"), insert("森林", window = 2))
-            assertEquals(emptyList<String>(), insert("森林", window = 2))
+            insert("森林", at = 0)
+            assertEquals(listOf("森林"), insert("森林", at = WINDOW))
         }
+
+    @Test
+    fun windowCountsFromLastDetectionNotLastNotification() =
+        runTest {
+            insert("森林", at = 0) // notified
+            assertEquals(emptyList<String>(), insert("森林", at = WINDOW - 1)) // suppressed, but extends the window
+            assertEquals(emptyList<String>(), insert("森林", at = WINDOW + 1))
+            assertEquals(listOf("森林"), insert("森林", at = 2 * WINDOW + 1))
+        }
+
+    private companion object {
+        const val WINDOW = 1_000L
+    }
 }

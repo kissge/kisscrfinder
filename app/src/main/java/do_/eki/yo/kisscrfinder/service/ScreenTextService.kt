@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 /**
  * Stays resident while enabled in accessibility settings, scans the text of every
  * window on screen and notifies when a same-radical compound newly appears.
- * Compounds already among the latest [DetectionDao.RECENT_WINDOW] log entries are not notified again.
+ * Compounds detected within the last [DetectionDao.RECENT_WINDOW_MILLIS] (notified or not) are not notified again.
  */
 class ScreenTextService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
@@ -98,7 +98,7 @@ class ScreenTextService : AccessibilityService() {
                 )
             }
         scope.launch {
-            val fresh = dao.insertIfNotRecent(candidates)
+            val fresh = dao.insertIfNotRecentlySeen(candidates)
             if (fresh.isNotEmpty()) notifier.notifyDetected(fresh.map { Compound(it.text, it.radical) })
         }
     }
